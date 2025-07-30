@@ -1,74 +1,272 @@
 import 'package:flutter/material.dart';
 
-void main() {
-  runApp(MyApp());
-}
+void main() => runApp(RoutineApp());
 
-class MyApp extends StatelessWidget {
+class RoutineApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Hello Flutter',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: HomePage(),
+      title: '루틴 앱',
+      theme: ThemeData(primarySwatch: Colors.teal),
+      home: HomeNavigation(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-class HomePage extends StatefulWidget {
+class HomeNavigation extends StatefulWidget {
   @override
-  _HomePageState createState() => _HomePageState();
+  _HomeNavigationState createState() => _HomeNavigationState();
 }
 
-class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
+class _HomeNavigationState extends State<HomeNavigation> {
+  int _currentIndex = 0;
 
-  static const List<Widget> _pages = <Widget>[
-    Center(child: Text('첫 번째 페이지', style: TextStyle(fontSize: 20))),
-    Center(child: Text('두 번째 페이지', style: TextStyle(fontSize: 20))),
-    Center(child: Text('세 번째 페이지', style: TextStyle(fontSize: 20))),
-    Center(child: Text('네 번째 페이지', style: TextStyle(fontSize: 20))),
+  final GlobalKey<RoutineHomePageState> _routineHomeKey = GlobalKey();
+
+  late final List<Widget> _screens = [
+    RoutineHomePage(key: _routineHomeKey),
+    NotificationsPage(),
+    CalendarPage(),
+    SearchPage(),
+    ProfilePage(),
   ];
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+  final List<String> _titles = [
+    '홈',
+    '알림',
+    '캘린더',
+    '검색',
+    '내 정보',
+  ];
+
+  void _openAddDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AddRoutineDialog(
+        onAdd: (routine) {
+          _routineHomeKey.currentState?.addRoutineExternally(routine);
+        },
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('메인 화면'),
+        title: Text(_titles[_currentIndex]),
+        centerTitle: true,
       ),
-      body: _pages[_selectedIndex],
+      body: Stack(
+        children: [
+          _screens[_currentIndex],
+          if (_currentIndex == 0)
+            Center(
+              child: FloatingActionButton(
+                onPressed: _openAddDialog,
+                child: Icon(Icons.add),
+                backgroundColor: Colors.orange,
+                shape: CircleBorder(),
+              ),
+            ),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        selectedItemColor: Colors.teal,
+        unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: '홈',
+        onTap: (index) => setState(() => _currentIndex = index),
+        items: [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
+          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: '알림'),
+          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: '캘린더'),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: '검색'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: '내 정보'),
+        ],
+      ),
+    );
+  }
+}
+
+// 루틴 모델
+class Routine {
+  final String title;
+  final String category;
+  bool isDone;
+
+  Routine({
+    required this.title,
+    required this.category,
+    this.isDone = false,
+  });
+}
+
+// 홈 화면
+class RoutineHomePage extends StatefulWidget {
+  const RoutineHomePage({Key? key}) : super(key: key);
+
+  @override
+  RoutineHomePageState createState() => RoutineHomePageState();
+}
+
+class RoutineHomePageState extends State<RoutineHomePage> {
+  final List<Routine> _routineList = [];
+
+  void addRoutineExternally(Routine routine) {
+    setState(() {
+      _routineList.add(routine);
+    });
+  }
+
+  void _toggleDone(int index) {
+    setState(() {
+      _routineList[index].isDone = !_routineList[index].isDone;
+    });
+  }
+
+  void _removeRoutine(int index) {
+    setState(() {
+      _routineList.removeAt(index);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _routineList.isEmpty
+      ? Center(child: Text(" "))
+        : ListView.builder(
+            padding: EdgeInsets.all(16),
+            itemCount: _routineList.length,
+            itemBuilder: (context, index) {
+              final routine = _routineList[index];
+              return Card(
+                child: ListTile(
+                  leading: Checkbox(
+                    value: routine.isDone,
+                    onChanged: (_) => _toggleDone(index),
+                  ),
+                  title: Text(
+                    routine.title,
+                    style: TextStyle(
+                      decoration: routine.isDone
+                          ? TextDecoration.lineThrough
+                          : TextDecoration.none,
+                    ),
+                  ),
+                  subtitle: Text(routine.category),
+                  trailing: IconButton(
+                    icon: Icon(Icons.delete, color: Colors.red),
+                    onPressed: () => _removeRoutine(index),
+                  ),
+                ),
+              );
+            },
+          );
+  }
+}
+
+// 루틴 추가 다이얼로그
+class AddRoutineDialog extends StatefulWidget {
+  final void Function(Routine) onAdd;
+
+  AddRoutineDialog({required this.onAdd});
+
+  @override
+  _AddRoutineDialogState createState() => _AddRoutineDialogState();
+}
+
+class _AddRoutineDialogState extends State<AddRoutineDialog> {
+  final _textController = TextEditingController();
+  String _selectedCategory = '건강';
+
+  final List<String> _categories = ['건강', '공부', '운동', '일정', '기타'];
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('루틴 추가'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _textController,
+            decoration: InputDecoration(labelText: '루틴 이름'),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: '검색',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: '알림',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: '내 정보',
+          SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _selectedCategory,
+            items: _categories
+                .map((cat) => DropdownMenuItem(
+                      value: cat,
+                      child: Text(cat),
+                    ))
+                .toList(),
+            onChanged: (val) {
+              if (val != null) setState(() => _selectedCategory = val);
+            },
+            decoration: InputDecoration(labelText: '루틴 종류'),
           ),
         ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.blue,
-        onTap: _onItemTapped,
+      ),
+      actions: [
+        TextButton(
+          child: Text('취소'),
+          onPressed: () => Navigator.pop(context),
+        ),
+        ElevatedButton(
+          child: Text('추가'),
+          onPressed: () {
+            final text = _textController.text.trim();
+            if (text.isNotEmpty) {
+              widget.onAdd(Routine(
+                title: text,
+                category: _selectedCategory,
+              ));
+              Navigator.pop(context);
+            }
+          },
+        ),
+      ],
+    );
+  }
+}
+
+// 나머지 페이지들
+class NotificationsPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(child: Text('알림 기능은 추후 추가 예정'));
+  }
+}
+
+class CalendarPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(child: Text('캘린더 기능은 추후 추가 예정'));
+  }
+}
+
+class SearchPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(child: Text('검색 기능은 추후 추가 예정'));
+  }
+}
+
+class ProfilePage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.account_circle, size: 100, color: Colors.teal),
+          SizedBox(height: 16),
+          Text('홍길동', style: TextStyle(fontSize: 24)),
+          Text('hello@example.com'),
+        ],
       ),
     );
   }
